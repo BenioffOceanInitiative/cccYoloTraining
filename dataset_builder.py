@@ -4,20 +4,13 @@ from collections import defaultdict
 import os
 import sys
 import shutil
-import cv2
 from pathlib import Path
 from v8train import trainv8
 from utility_scripts.get_class_dict import get_class_dict
 from utility_scripts.labels_per_class import labels_per_class
-from utility_scripts.utils import *
-import albumentations as A
-import copy
 import sys
-import string
 import random
 import matplotlib.pyplot as plt
-
-
 
 class DatasetBuilder:
     def __init__(self, project_name, annotations, images):
@@ -35,11 +28,7 @@ class DatasetBuilder:
         
         self.prep_annotations()    
         self.check_images_exist()
-        
-        if self.new:
-            self.copy_images(self.annotations)
-            
-            
+                   
     def prep_annotations(self):
         '''
         checks to see if the annotations have file_name key and if the image paths are flattened, if not, it will flatten the image paths and add the file_name key and zero index the class_id's
@@ -84,6 +73,7 @@ class DatasetBuilder:
             return True
         else:
             # load the config file
+            print(f'{self.directory} already exists, attempting to load config file...')
             with open(self.config_file, 'r+') as f:
                 data = json.load(f)
                 for arg in data:
@@ -91,14 +81,12 @@ class DatasetBuilder:
                 print(data)
             class_dict = self.get_class_dict(self.annotations,False)
             self.prep_annotations()
-            print(f'{self.directory} already exists, attempting to load config file...')
             return False
         
     def flatten_image_paths(self,data)-> dict:
         '''
         flattens the image paths in the annotations and adds file_name key 
         '''
-        
         for i in data['images']:
             i['file_name'] = i['file_name'].split('/')[-1]
         if len(data['annotations']):
@@ -107,7 +95,6 @@ class DatasetBuilder:
                 data = self.add_filename_key(data)
             for i in data['annotations']:
                 i['file_name'] = i['file_name'].split('/')[-1]
-            
         return data
             
     def copy_images(self,annotation_file):
@@ -164,16 +151,10 @@ class DatasetBuilder:
             print(f'Found folder with {num_images} resized images')
             self.images = f'{self.directory}/resized_images'
 
-
     def combine_datasets(self, annotation_file2)-> None:
         '''
         Reads two JSON annotation files and merges them with consistent class IDs and names.
-
         '''
-        print("starting")
-        
-        
-        self.copy_images(annotation_file2)
         with open(self.annotations, 'r') as f:
             data1 = json.load(f)
         with open(annotation_file2, 'r') as f:
@@ -219,16 +200,13 @@ class DatasetBuilder:
             data2['annotations'][i]['id'] = 1 + i + maxn
             data2['annotations'][i]['image_id'] = data2_id_dict[data2['annotations'][i]['image_id']] 
              
-
         combined_annotations = data1['annotations'] + data2['annotations']
         combined_images = data1['images'] + data2['images']
-
         combined_data = {
             'images': combined_images,
             'annotations': combined_annotations,
             'categories': new_categories
         }
-
 
         file_name = f'{self.directory}/{self.name}_combined.json'
         with open(file_name, 'w') as f:
@@ -254,37 +232,6 @@ class DatasetBuilder:
             f.seek(0)
             json.dump(data, f, indent=4)
             f.truncate()
-       
-        print(f'Updated config file for {self.name}')
-
-    def resize_images(self, target_width)-> None:
-            '''
-            Resizes all images in a given directory to the target width while maintaining aspect ratio.
-            '''
-            output_dir = f'{self.directory}/resized_images'
-            fn = Path(output_dir) 
-            fn.mkdir(parents=True, exist_ok=True)
-            images = os.listdir(self.images)
-            i = 0
-            print('resizing images:')
-            for filename in images:
-                sys.stdout.write(f'\r {i}/{len(images)}')
-                i += 1
-                image = cv2.imread(os.path.join(self.images,filename))
-                height, width, _ = image.shape
-                aspect_ratio = width / height
-        
-                # Calculate the new height based on the target width and aspect ratio
-                target_height = int(target_width / aspect_ratio)
-                if target_width >= width:
-                    print(f'Image: {filename} is already the same size or smaller than the target width of {target_width}')
-                    # move the image to the output directory
-                    shutil.move(os.path.join(self.images,filename), output_dir)
-                    continue
-                image = cv2.resize(image, (int(target_width),int(target_height)), interpolation=cv2.INTER_AREA)
-                cv2.imwrite(os.path.join(output_dir,filename), image)
-            self.update_config(annotations = self.annotations, images = output_dir)
-            self.images = output_dir
 
     def add_filename_key(self,data) -> dict:
         '''
@@ -297,7 +244,6 @@ class DatasetBuilder:
         for a in data['annotations']:
             if not 'file_name' in a:
                 a['file_name'] = image_dict[a['image_id']]
-      
         return data
 
     def remove_classes(self,classes_to_remove) -> None:
@@ -307,8 +253,7 @@ class DatasetBuilder:
         """
         output_file = f'{self.directory}/{self.name}_removed.json'
         with open(self.annotations, 'r') as f:
-            annotations = json.load(f)
-                
+            annotations = json.load(f)  
         class_dict = {}
 
         for i in  annotations['categories']:
@@ -318,7 +263,6 @@ class DatasetBuilder:
         print(class_dict)
 
         for i in classes_to_remove:
-            
             print(class_dict[i])
 
         annotations['annotations'] = [c for c in annotations['annotations'] if c['category_id'] not in classes_to_remove]
@@ -328,19 +272,14 @@ class DatasetBuilder:
         # get new class dict
         for i in  annotations['categories']:
             class_dict[i['id']] = i['name']
-
-
         # Create a mapping from class_name to a new id
         class_to_new_id = {class_name: new_id for new_id, class_name in enumerate(class_dict.values())}
         #print(class_to_new_id)
-
         # Update the 'id' in categories using the new mapping
         for category in annotations['categories']:
             category['id'] = class_to_new_id[category['name']]
-
         # Update the 'category_id' in annotations using the new mapping
         for annotation in annotations['annotations']:
-        
             original_class_name = class_dict[annotation['category_id']]
             annotation['category_id'] = class_to_new_id[original_class_name] 
 
@@ -385,99 +324,6 @@ class DatasetBuilder:
         with open(file_name, 'r+') as f:
             json.dump(data, f, indent=4)
 
-    def augment_classes(self,augmentations:dict):
-        '''
-        Augments images based on the number of augmentations specified in the augmentations dictionary.
-        '''
-        print(f'Augmenting images in {self.annotations}')
-        print(f'Augmentations: {augmentations}')
-        with open(self.annotations, "r") as f:
-            data = json.load(f)
-        annotations = data["annotations"]
-        updated_annotations = []
-        annotations_length = len(annotations)
-        print(f'Current Annotations Length: {annotations_length}')
-        
-        image_template = {
-            "file_name": "",
-            "height": 4104,
-            "width": 7296,
-            "id": 2020120011100728
-        }
-
-        def augment_and_save_image(image, file_name, output_folder, version):
-            # Save the augmented image in the same folder as the original image
-            new_file_name = f"{os.path.splitext(file_name)[0]}_{version}.jpg"
-            output_path = os.path.join(output_folder, new_file_name)
-            os.makedirs(output_folder, exist_ok=True)
-            if os.path.exists(output_path):
-                print('File already exists')
-            else: 
-                # Define your augmentation pipeline using Albumentations
-                transform = A.Compose([
-                    # Add your desired transformations here
-                    A.RandomBrightnessContrast(p=0.25),
-                    A.MedianBlur(p=0.25),
-                    #A.RandomFog(p=0.1),
-                    #A.RandomSnow(p=0.2),
-                    #A.RandomShadow(p=0.2),
-                    A.RandomRain(p=0.2),
-                ])
-                # Apply the transformations to the image
-                augmented_image = transform(image=image)["image"]
-                cv2.imwrite(output_path, augmented_image)
-                #print(f"Augmented image saved as: {output_path}")
-            return new_file_name
-        
-        for annotation in annotations:
-            if annotation["category_id"] in augmentations:
-                #print(annotation["category_id"])
-                file_name = annotation["file_name"]
-                image_path = os.path.join(self.images, file_name)
-                image = cv2.imread(image_path)
-
-                if image is not None:
-                    file_name = f'{annotation["file_name"]}_augmented'
-                    for i in range(augmentations[annotation["category_id"]]):
-                        # Moved the new_annotation creation here
-                        new_annotation = copy.copy(annotation)
-
-                        new_id = int(''.join(random.choices(string.digits, k=16)))
-                        res = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-                        version = res
-                        new_file_name = augment_and_save_image(image, file_name, self.images, version)
-
-                        new_annotation['file_name'] = new_file_name
-                        new_annotation['image_id'] = new_id
-                        annotations_length += 1
-                        new_annotation['id'] = new_id
-                        updated_annotations.append(new_annotation)
-                        #print(f'Total new annotations: {len(updated_annotations)}')
-                        new_image = copy.copy(image_template)
-                        new_image['file_name'] = new_file_name
-                        new_image['id'] = new_id
-                        data["images"].append(new_image)
-            else:
-                updated_annotations.append(annotation)
-                    
-        data["annotations"] += updated_annotations
-        
-        print(f'New annotations length"{len(data["annotations"])}')
-
-        updated_annotations_file = os.path.splitext(self.annotations)[0] + "_updated.json"
-       
-        with open(updated_annotations_file, "w") as f:
-            json.dump(data, f, indent=4)
-        self.annotations = updated_annotations_file
-        print(f'Annotations saved to {updated_annotations_file}')
-        class_dict = get_class_dict(updated_annotations_file,False)
-        self.class_dict = class_dict
-        self.annotations = updated_annotations_file
-        self.update_config(annotations=updated_annotations_file, class_dict=class_dict,augmentations=augmentations)
-        os.makedirs(f'{self.directory}/figures', exist_ok=True)
-        with open(f'{self.directory}/figures/{self.name}_class_dict.json', 'w') as f:
-            json.dump(class_dict, f, indent=4)
-    
     def data_yaml_file(self):
         '''
         Creates a data.yaml file for use with YOLOv5 and v8.
@@ -499,8 +345,6 @@ class DatasetBuilder:
             f.write(f"names: {list(self.class_dict.values())}")
         print(f'Created data.yaml file for {self.name}')
 
-
-
     def to_yolo(self):
         '''
         Converts COCO annotations to YOLO format, compatible with v5 and v8.
@@ -510,12 +354,10 @@ class DatasetBuilder:
         with open(self.annotations) as f:
             fn = Path(self.directory) / 'labels'   # folder name
             fn.mkdir(exist_ok=True, parents=True)  # make folder
-        
             data = json.load(f)
             print('Number of images:', len(data['images']))
             print('Number of annotations:', len(data['annotations']))
             print(f'Converting {self.annotations}...')
-
             # Create image dict
             #images = {x['id']: x for x in data['images']}
             images = {}
@@ -525,12 +367,10 @@ class DatasetBuilder:
                     images[x['id']] = x
                 else:
                     counter += 1
-                    #sys.stdout.write(f'\r {counter} duplicate images found')
-                    
+                    #sys.stdout.write(f'\r {counter} duplicate images found')  
             for i in range(len(data['images'])):
                 with open((fn / data['images'][i]['file_name']).with_suffix('.txt'), 'w') as file:
                     pass
-
             # Create image-annotations dict
             imgToAnns = defaultdict(list)
             ann_counter = 0
@@ -543,10 +383,8 @@ class DatasetBuilder:
             for img_id, anns in imgToAnns.items():
                 img = images[img_id]
                 h, w, f = img['height'], img['width'], img['file_name']
-      
                 bboxes = []
                 for ann in anns:
-                    
                     # The COCO box format is [top left x, top left y, width, height]
                     box = np.array(ann['bbox'], dtype=np.float64)
                     box[:2] += box[2:] / 2  # xy top-left corner to center
@@ -554,12 +392,10 @@ class DatasetBuilder:
                     box[[1, 3]] /= h  # normalize y
                     if box[2] <= 0 or box[3] <= 0:  # if w <= 0 and h <= 0
                         continue
-
                     cls = ann['category_id']
                     box = [cls] + box.tolist()
                     if box not in bboxes:
                         bboxes.append(box)
-                
                 # Write
                 with open((fn / f).with_suffix('.txt'), 'a') as file:
              
@@ -567,7 +403,6 @@ class DatasetBuilder:
                         line = *(bboxes[i]),  # cls, box or segments
                         file.write(('%g ' * len(line)).rstrip() % line + '\n')
         
-   
     def split_indices(self,x, train, test, validate):
         '''
         splits the indices of the data into train, test, and validation sets.
@@ -591,8 +426,7 @@ class DatasetBuilder:
         if files == []:
             print('No label files found, please check the path and try again')
             sys.exit()
-        
-        print(len(files))
+
         if seed == None:
             seed = 42
         random.Random(seed).shuffle(files)
@@ -601,24 +435,21 @@ class DatasetBuilder:
         datasets = {'train': i, 'test': j, 'val': k}
         print('train: ',len(datasets['train']),'test: ',len(datasets['test']), 'val: ', len(datasets['val']))
         for dataset in datasets:
-            make_dirs(f'{output_dir}/{dataset}')
+            self.make_dirs(f'{output_dir}/{dataset}')
             directory = f'{output_dir}/{dataset}/labels'
             
             for index in datasets[dataset]:
                 image_name = files[index].split('.')[0] + '.' + 'jpg'
                 try:
-                    shutil.move(f'{self.images}/{image_name}', f'{output_dir}/{dataset}/images')
-                    shutil.move(f'{self.directory}/labels/{files[index]}', directory)
+                    shutil.copy(f'{self.images}/{image_name}', f'{output_dir}/{dataset}/images')
+                    shutil.copy(f'{self.directory}/labels/{files[index]}', directory)
                 except:
-                    print(f'Error moving {files[index]} with error {sys.exc_info()}')
+                    print(f'Error copying {files[index]} with error {sys.exc_info()}')
                     err_counter += 1
                     continue
         print('done with ', err_counter, 'errors')
-        for keys in datasets:
-            counts = self.output_num_labels(f'{output_dir}/{keys}/labels')
-            self.bar_graph(counts, output_dir, keys)
-            print(keys, counts)
-            
+        for key in datasets:
+            self.output_num_labels(f'{output_dir}/{key}/labels')  
         self.data_yaml_file()
     
     def output_num_labels(self,file_dir):
@@ -639,21 +470,7 @@ class DatasetBuilder:
                     else:
                         label_dict[int(line[0])] += 1
         return label_dict
-    def bar_graph(self,label_dict, file_path, dataset_name):
-    
-        labels, values = zip(*sorted(label_dict.items()))
-        indexes = np.arange(len(labels))
-        width = .8
-        plt.bar(indexes, values, width)
-        plt.xticks(indexes , labels)
-        plt.xlabel('labels')
-        plt.ylabel('number of labels')
-        plt.title('number of labels per class')
-        os.makedirs(f'{file_path}/figures', exist_ok=True)
-        plt.savefig(f'{file_path}/figures/{dataset_name}.png')
-        plt.close()
 
-            
     def get_class_dict(self,annotation_file,write:bool)->dict:
         '''
         reads a json annotation file and returns a dictionary of class_id's and class_names
@@ -681,3 +498,11 @@ class DatasetBuilder:
         '''
         trainv8(f'{self.directory}/data/datav8.yaml',epochs)
         
+    def make_dirs(self,dir='new_dir/'):
+        # Create folders
+        dir = Path(dir)
+        if dir.exists():
+            shutil.rmtree(dir)  # delete dir
+        for p in dir, dir / 'labels', dir / 'images':
+            p.mkdir(parents=True, exist_ok=True)  # make dir
+        return dir
