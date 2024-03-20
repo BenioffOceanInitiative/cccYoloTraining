@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 import cv2
-from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue
+from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue, ToGray
 import datetime
 
 def load_image(image_path):
@@ -34,10 +34,15 @@ def augment_for_multiple_classes(args):
         raise ValueError(f"No categories found for the specified classes to augment: {classes_to_augment}")
     print(f'Augmenting: {classes_to_augment}, Category IDs: {categories_ids_to_augment}')
     
-    augmentation = Compose([
+    augmentation_transforms = [
         RandomBrightnessContrast(p=1),
         HueSaturationValue(hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=10, p=1)
-    ])
+    ]
+    
+    if args.grayscale:
+        augmentation_transforms.append(ToGray(p=1))
+        
+    augmentation = Compose(augmentation_transforms)
 
     new_image_id = max(image['id'] for image in data['images']) + 1
     new_annotation_id = max(ann['id'] for ann in data['annotations']) + 1
@@ -46,6 +51,11 @@ def augment_for_multiple_classes(args):
     for image_info in data['images']:
         if image_info['file_name'].startswith('aug_'):
             continue
+        
+        if args.trash_wheel_id is not None:
+            prefix = f"{args.trash_wheel_id}_"
+            if not image_info['file_name'].startswith(prefix):
+                continue
         
         annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id'] and ann['category_id'] in categories_ids_to_augment]
         if not annotations:
@@ -96,6 +106,8 @@ if __name__ == "__main__":
     parser.add_argument("--augmented_image_dir", required=True, help="Directory to save augmented images.")
     parser.add_argument("--updated_annotations_file", required=True, help="File path to save the updated annotations JSON.")
     parser.add_argument("--classes_to_augment", nargs='+', required=True, help="List of class names to augment.")
+    parser.add_argument("--grayscale", action='store_true', help="If set, converts images to grayscale as part of the augmentation process.")
+    parser.add_argument("--trash_wheel_id", type=int, help="Filter images starting with a specific trash wheel ID.")
 
     args = parser.parse_args()
     augment_for_multiple_classes(args)
