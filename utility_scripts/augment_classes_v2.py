@@ -2,7 +2,7 @@ import argparse
 import json
 import os
 import cv2
-from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue, ToGray
+from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue, ToGray, CLAHE, ChannelShuffle, HorizontalFlip, VerticalFlip
 import datetime
 
 def load_image(image_path):
@@ -37,6 +37,10 @@ def augment_for_multiple_classes(args):
     augmentation_transforms = [
         RandomBrightnessContrast(p=1),
         HueSaturationValue(hue_shift_limit=10, sat_shift_limit=15, val_shift_limit=10, p=1)
+        CLAHE(clip_limit=4.0, tile_grid_size=(8, 8), always_apply=False, p=0.5),  # CLAHE transform
+        ChannelShuffle(p=0.5)  # Channel Shuffle transform
+        HorizontalFlip(p=0.5),  # Horizontal Flip transform
+        VerticalFlip(p=0.5),    # Vertical Flip transform
     ]
     
     if args.grayscale:
