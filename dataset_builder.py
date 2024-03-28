@@ -405,23 +405,44 @@ class DatasetBuilder:
             "id": 2020120011100728
         }
 
-        def augment_and_save_image(image, file_name, output_folder, version):
+        def augment_and_save_image(image, file_name, output_folder, version, nighttime):
             # Save the augmented image in the same folder as the original image
             new_file_name = f"{os.path.splitext(file_name)[0]}_{version}.jpg"
             output_path = os.path.join(output_folder, new_file_name)
             os.makedirs(output_folder, exist_ok=True)
             if os.path.exists(output_path):
                 print('File already exists')
-            else: 
+            else:
+                if nighttime:
+                # Creates vignette effect to mimic nighttime images
+                    rows, cols = image.shape[:2]
+
+                    X_resultant_kernel = cv2.getGaussianKernel(cols,200)
+                    Y_resultant_kernel = cv2.getGaussianKernel(rows,200)
+
+                    resultant_kernel = Y_resultant_kernel * X_resultant_kernel.T
+                    mask = 255 * resultant_kernel / np.linalg.norm(resultant_kernel)
+                    output = np.copy(image)
+
+                    for i in range(3):
+                        output[:,:,i] = output[:,:,i] * mask
+    
+                    image = output 
+
+                    transform = A.Compose([
+                        A.ToGray(1),
+                        A.ISONoise()    
+                    ])
+                else:
                 # Define your augmentation pipeline using Albumentations
-                transform = A.Compose([
-                    # Add your desired transformations here
-                    A.RandomBrightnessContrast(p=0.25),
-                    A.MedianBlur(p=0.25),
-                    #A.RandomFog(p=0.1),
-                    #A.RandomSnow(p=0.2),
-                    #A.RandomShadow(p=0.2),
-                    A.RandomRain(p=0.2),
+                    transform = A.Compose([
+                        # Add your desired transformations here
+                        A.RandomBrightnessContrast(p=0.25),
+                        A.MedianBlur(p=0.25),
+                        #A.RandomFog(p=0.1),
+                        #A.RandomSnow(p=0.2),
+                        #A.RandomShadow(p=0.2),
+                        A.RandomRain(p=0.2),
                 ])
                 # Apply the transformations to the image
                 augmented_image = transform(image=image)["image"]
