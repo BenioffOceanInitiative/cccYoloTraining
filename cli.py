@@ -65,9 +65,15 @@ def get_directory(text)->str:
 
 def handle_data_split()->tuple:
     split_ratio = get_input('Please enter the ratio you would like to split the dataset by train, test, and val: ex. 80/10/10 or 75/15/10 ')
-    test,train,val = split_ratio.split('/')
-    list_split = [test,train,val]
-    test,train,val = [int(x) * 0.01 for x in list_split]
+    
+    try:
+        test,train,val = split_ratio.split('/')
+        list_split = [test,train,val]
+        test,train,val = [int(x) * 0.01 for x in list_split]
+    except ValueError:
+        print('Invalid Input: Please try again ')
+        return handle_data_split()
+
     print(test,train,val)
     if test + train + val != 1:
         print('The split ratio does not add up to 100%!')

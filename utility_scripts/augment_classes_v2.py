@@ -2,7 +2,8 @@ import argparse
 import json
 import os
 import cv2
-from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue, ToGray, CLAHE, ChannelShuffle, HorizontalFlip, VerticalFlip
+import numpy as np
+from albumentations import Compose, RandomBrightnessContrast, HueSaturationValue, ToGray, CLAHE, ChannelShuffle, HorizontalFlip, VerticalFlip, ISONoise
 import datetime
 
 def load_image(image_path):
@@ -43,9 +44,11 @@ def augment_for_multiple_classes(args):
         VerticalFlip(p=0.5),   # Vertical Flip transform
     ]
     
-    if args.grayscale:
+    if args.nighttime:
+        # Applies black and white filter and noise to image
         augmentation_transforms.append(ToGray(p=1))
-        
+        augmentation_transforms.append(ISONoise(p=1))
+    
     augmentation = Compose(augmentation_transforms)
 
     new_image_id = max(image['id'] for image in data['images']) + 1
@@ -71,6 +74,19 @@ def augment_for_multiple_classes(args):
             continue
 
         image = load_image(image_path)
+        if args.nighttime:
+            #Applies vignette mask to image
+            rows, cols = image.shape[:2]
+
+            X_resultant_kernel = cv2.getGaussianKernel(cols,200)
+            Y_resultant_kernel = cv2.getGaussianKernel(rows,200)
+
+            resultant_kernel = Y_resultant_kernel * X_resultant_kernel.T
+            mask = 255 * resultant_kernel / np.linalg.norm(resultant_kernel)
+
+            for i in range(3):
+                image[:,:,i] = image[:,:,i] * mask
+
         augmented = augmentation(image=image)
         augmented_image = augmented['image']
 
@@ -110,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--augmented_image_dir", default='/home/trashwheel/annotated_images/', help="Directory to save augmented images.")
     parser.add_argument("--updated_annotations_file", default='/home/trashwheel-annotations/all_annotations.json', help="File path to save the updated annotations JSON.")
     parser.add_argument("--classes_to_augment", nargs='+', required=True, help="List of class names to augment.")
-    parser.add_argument("--grayscale", action='store_true', help="If set, converts images to grayscale as part of the augmentation process.")
+    parser.add_argument("--nighttime", action='store_true', help="If set, converts images to nighttime(Adds noise, grayscale, vignette).")
     parser.add_argument("--trash_wheel_id", type=int, help="Filter images starting with a specific trash wheel ID.")
 
     args = parser.parse_args()
