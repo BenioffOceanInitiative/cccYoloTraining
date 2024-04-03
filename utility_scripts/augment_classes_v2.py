@@ -47,7 +47,7 @@ def augment_for_multiple_classes(args):
     if args.nighttime:
         # Applies black and white filter and noise to image
         augmentation_transforms.append(ToGray(p=1))
-        augmentation_transforms.append(ISONoise())
+        augmentation_transforms.append(ISONoise(p=1))
     
     augmentation = Compose(augmentation_transforms)
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--augmented_image_dir", default='/home/trashwheel/annotated_images/', help="Directory to save augmented images.")
     parser.add_argument("--updated_annotations_file", default='/home/trashwheel-annotations/all_annotations.json', help="File path to save the updated annotations JSON.")
     parser.add_argument("--classes_to_augment", nargs='+', required=True, help="List of class names to augment.")
-    parser.add_argument("--nighttime", action='store_true', help="If true, converts images to nighttime(Adds noise, grayscale, vignette).")
+    parser.add_argument("--nighttime", action='store_true', help="If set, converts images to nighttime(Adds noise, grayscale, vignette).")
     parser.add_argument("--trash_wheel_id", type=int, help="Filter images starting with a specific trash wheel ID.")
 
     args = parser.parse_args()
