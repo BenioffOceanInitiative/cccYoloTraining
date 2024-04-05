@@ -64,8 +64,11 @@ def augment_for_multiple_classes(args):
             if not image_info['file_name'].startswith(prefix):
                 continue
         
-        annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id'] and ann['category_id'] in categories_ids_to_augment]
+        annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id']]
+        relevant_annotations = [ann for ann in annotations_for_image if ann['category_id'] in categories_ids_to_augment]
         if len(annotations) < args.minimum_bounding_boxes:
+            continue
+        if not relevant_annotations:
             continue
         print(f'Found an image: {image_info["file_name"]}')
         image_path = os.path.join(args.image_dir, image_info['file_name'])
