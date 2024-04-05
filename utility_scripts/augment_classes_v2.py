@@ -64,8 +64,11 @@ def augment_for_multiple_classes(args):
             if not image_info['file_name'].startswith(prefix):
                 continue
         
-        annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id'] and ann['category_id'] in categories_ids_to_augment]
-        if not annotations:
+        annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id']]
+        relevant_annotations = [ann for ann in annotations if ann['category_id'] in categories_ids_to_augment]
+        if len(annotations) < args.minimum_bounding_boxes:
+            continue
+        if not relevant_annotations:
             continue
         print(f'Found an image: {image_info["file_name"]}')
         image_path = os.path.join(args.image_dir, image_info['file_name'])
@@ -75,17 +78,21 @@ def augment_for_multiple_classes(args):
 
         image = load_image(image_path)
         if args.nighttime:
-            #Applies vignette mask to image
-            rows, cols = image.shape[:2]
+            # Check Brightness by calculating mean brightness as percentage
+            gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)  
+            meanpercent = np.mean(gray_image) * 100 / 255
+            if meanpercent > 38: # Brightness threshold
+                # Applies vignette mask to image
+                rows, cols = image.shape[:2]
 
-            X_resultant_kernel = cv2.getGaussianKernel(cols,200)
-            Y_resultant_kernel = cv2.getGaussianKernel(rows,200)
+                X_resultant_kernel = cv2.getGaussianKernel(cols,200)
+                Y_resultant_kernel = cv2.getGaussianKernel(rows,200)
 
-            resultant_kernel = Y_resultant_kernel * X_resultant_kernel.T
-            mask = 255 * resultant_kernel / np.linalg.norm(resultant_kernel)
+                resultant_kernel = Y_resultant_kernel * X_resultant_kernel.T
+                mask = 255 * resultant_kernel / np.linalg.norm(resultant_kernel)
 
-            for i in range(3):
-                image[:,:,i] = image[:,:,i] * mask
+                for i in range(3):
+                    image[:,:,i] = image[:,:,i] * mask
 
         augmented = augmentation(image=image)
         augmented_image = augmented['image']
@@ -128,6 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--classes_to_augment", nargs='+', required=True, help="List of class names to augment.")
     parser.add_argument("--nighttime", action='store_true', help="If set, converts images to nighttime(Adds noise, grayscale, vignette).")
     parser.add_argument("--trash_wheel_id", type=int, help="Filter images starting with a specific trash wheel ID.")
+    parser.add_argument("--minimum_bounding_boxes", type=int, default=1, help="Augments images only with minimum number of bounding boxes. 1 by default.")  
 
     args = parser.parse_args()
     augment_for_multiple_classes(args)
