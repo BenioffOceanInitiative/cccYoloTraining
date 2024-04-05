@@ -65,7 +65,7 @@ def augment_for_multiple_classes(args):
                 continue
         
         annotations = [ann for ann in data['annotations'] if ann['image_id'] == image_info['id']]
-        relevant_annotations = [ann for ann in annotations_for_image if ann['category_id'] in categories_ids_to_augment]
+        relevant_annotations = [ann for ann in annotations if ann['category_id'] in categories_ids_to_augment]
         if len(annotations) < args.minimum_bounding_boxes:
             continue
         if not relevant_annotations:
